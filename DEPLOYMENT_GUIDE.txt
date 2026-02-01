@@ -1,0 +1,298 @@
+================================================================================
+  CYBER-SENTINEL MONITORING SYSTEM - DEPLOYMENT GUIDE
+================================================================================
+
+File Archive: cyber-sentinel-complete.tar.gz
+Size: 253KB
+Include: Backend + Frontend + Documentation
+
+================================================================================
+CARA EXTRACT DAN DEPLOY
+================================================================================
+
+1. DOWNLOAD ARCHIVE
+   - Download file: cyber-sentinel-complete.tar.gz
+   - Verifikasi size: ~253KB
+   - Checksum: lihat file cyber-sentinel-complete.tar.gz.md5
+
+2. UPLOAD KE VPS
+   Via SCP dari komputer lokal:
+   
+   scp cyber-sentinel-complete.tar.gz root@YOUR_VPS_IP:/tmp/
+   
+   Atau upload via FileZilla/WinSCP
+
+3. EXTRACT DI VPS
+   ssh root@YOUR_VPS_IP
+   cd /home
+   tar -xzf /tmp/cyber-sentinel-complete.tar.gz
+   
+   Struktur hasil extract:
+   /home/
+   ├── backend/
+   ├── frontend/
+   ├── UDP_MONITORING_GUIDE.md
+   └── README.md
+
+4. SETUP BACKEND
+   cd /home/backend
+   
+   # Install Python dependencies
+   python3.11 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   
+   # Configure .env
+   nano .env
+   
+   Edit sesuai environment VPS Anda:
+   MONGO_URL=mongodb://localhost:27017
+   DB_NAME=cyber_sentinel_prod
+   CORS_ORIGINS=https://mon.osi.my.id
+   JWT_SECRET=YOUR-STRONG-SECRET-KEY-HERE
+   GMAIL_USER=banjarmasinais@gmail.com
+   GMAIL_APP_PASSWORD=xjvpouyymnmpstoc
+   NOTIFICATION_EMAIL=afif@ppns.ac.id
+
+5. SETUP FRONTEND
+   cd /home/frontend
+   
+   # Install Node dependencies
+   yarn install
+   
+   # Configure .env
+   nano .env
+   
+   Edit:
+   REACT_APP_BACKEND_URL=https://mon.osi.my.id
+   
+   # Build production
+   yarn build
+
+6. SETUP SYSTEMD SERVICE
+   # Backend service
+   sudo nano /etc/systemd/system/cyber-sentinel-backend.service
+   
+   [Unit]
+   Description=Cyber-Sentinel Backend API
+   After=network.target mongod.service
+   
+   [Service]
+   Type=simple
+   User=www-data
+   WorkingDirectory=/home/backend
+   Environment="PATH=/home/backend/venv/bin"
+   ExecStart=/home/backend/venv/bin/uvicorn server:app --host 0.0.0.0 --port 8001 --workers 2
+   Restart=always
+   RestartSec=10
+   
+   [Install]
+   WantedBy=multi-user.target
+   
+   # Enable and start
+   sudo systemctl daemon-reload
+   sudo systemctl enable cyber-sentinel-backend
+   sudo systemctl start cyber-sentinel-backend
+
+7. SETUP NGINX
+   sudo nano /etc/nginx/sites-available/cyber-sentinel
+   
+   server {
+       listen 80;
+       server_name mon.osi.my.id;
+       
+       location / {
+           root /var/www/cyber-sentinel;
+           try_files $uri $uri/ /index.html;
+       }
+       
+       location /api {
+           proxy_pass http://localhost:8001;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   
+   # Copy frontend build
+   sudo mkdir -p /var/www/cyber-sentinel
+   sudo cp -r /home/frontend/build/* /var/www/cyber-sentinel/
+   
+   # Enable site
+   sudo ln -s /etc/nginx/sites-available/cyber-sentinel /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl reload nginx
+
+8. SETUP SSL
+   sudo certbot --nginx -d mon.osi.my.id
+
+9. VERIFY
+   # Check backend
+   curl http://localhost:8001/api/
+   
+   # Check frontend
+   curl https://mon.osi.my.id
+   
+   # Check in browser
+   https://mon.osi.my.id
+
+================================================================================
+FITUR YANG TERINSTALL
+================================================================================
+
+✓ Authentication (JWT)
+✓ HTTPS Website Monitoring
+✓ Socket (TCP) Monitoring  
+✓ UDP Activity Monitoring
+✓ Email Notifications (SMTP Gmail)
+✓ Dashboard dengan Charts
+✓ History/Logs
+✓ Auto monitoring setiap 30 menit
+
+================================================================================
+MONITORING TYPES
+================================================================================
+
+1. HTTPS MONITORING
+   - Monitor website availability
+   - Check HTTP status code
+   - Measure response time
+   
+2. SOCKET (TCP) MONITORING
+   - Monitor TCP port connectivity
+   - Format: host:port
+   - Example: server.com:8080
+
+3. UDP ACTIVITY MONITORING
+   - Monitor UDP listener activity
+   - Track packet activity
+   - Format: 127.0.0.1:port (localhost only)
+   - Threshold: 30 minutes without activity = DOWN
+   - See: UDP_MONITORING_GUIDE.md
+
+================================================================================
+EMAIL NOTIFICATION
+================================================================================
+
+Target: afif@ppns.ac.id
+SMTP: Gmail (banjarmasinais@gmail.com)
+Trigger: Monitor status DOWN
+Frequency: Once per incident (no spam)
+
+================================================================================
+DATABASE
+================================================================================
+
+MongoDB Collections:
+- users: User accounts
+- monitors: Monitor configurations
+- monitor_logs: Check history
+
+Backup Command:
+mongodump --db cyber_sentinel_prod --out /backup/$(date +%Y%m%d)
+
+================================================================================
+MAINTENANCE
+================================================================================
+
+# View logs
+sudo journalctl -u cyber-sentinel-backend -f
+sudo tail -f /var/log/nginx/error.log
+
+# Restart services
+sudo systemctl restart cyber-sentinel-backend
+sudo systemctl restart nginx
+
+# Check status
+sudo systemctl status cyber-sentinel-backend
+sudo systemctl status mongod
+sudo systemctl status nginx
+
+# Update application
+cd /home/backend
+source venv/bin/activate
+git pull  # or upload new files
+pip install -r requirements.txt
+sudo systemctl restart cyber-sentinel-backend
+
+cd /home/frontend
+yarn install
+yarn build
+sudo cp -r build/* /var/www/cyber-sentinel/
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Backend tidak start:
+- Check logs: sudo journalctl -u cyber-sentinel-backend -n 50
+- Check port: sudo netstat -tulpn | grep 8001
+- Check permissions: sudo chown -R www-data:www-data /home/backend
+
+Frontend blank:
+- Check browser console (F12)
+- Verify REACT_APP_BACKEND_URL in .env
+- Check Nginx config: sudo nginx -t
+
+Email tidak terkirim:
+- Verify SMTP credentials in backend/.env
+- Check logs untuk error messages
+- Test email function secara manual
+
+UDP monitoring tidak detect activity:
+- Check if UDP listener running: netstat -anu | grep PORT
+- Verify localhost access: ss -u -n sport = PORT
+- See UDP_MONITORING_GUIDE.md for details
+
+================================================================================
+SUPPORT & DOCUMENTATION
+================================================================================
+
+Documentation:
+- UDP_MONITORING_GUIDE.md: Complete UDP monitoring guide
+- README.md: Project overview
+
+Tech Stack:
+- Backend: FastAPI (Python 3.11+)
+- Frontend: React 19
+- Database: MongoDB 7.0
+- Scheduler: APScheduler
+- Email: aiosmtplib (Gmail SMTP)
+
+Design:
+- Theme: Cyber-Sentinel (Dark Mode)
+- Fonts: JetBrains Mono + Inter
+- UI: Shadcn UI + Tailwind CSS
+- Charts: Recharts
+
+================================================================================
+SECURITY CHECKLIST
+================================================================================
+
+□ Change JWT_SECRET in backend/.env
+□ Setup MongoDB authentication
+□ Configure firewall (ufw)
+□ Enable HTTPS with certbot
+□ Secure .env files (chmod 600)
+□ Regular backups
+□ Update dependencies regularly
+□ Monitor system logs
+
+================================================================================
+POST-DEPLOYMENT
+================================================================================
+
+1. Register first user account
+2. Add test monitors (HTTPS, Socket, UDP)
+3. Verify email notifications
+4. Test manual check functionality
+5. Monitor logs for 24 hours
+6. Setup automated backups
+
+================================================================================
+
+Developed with Emergent AI Platform
+Domain: mon.osi.my.id
+Version: 1.0.0
+Last Updated: January 2026
+
+================================================================================

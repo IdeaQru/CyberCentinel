@@ -1,0 +1,48 @@
+/* Global styles for Cyber-Sentinel */
+.status-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+.grid-pattern {
+  background-image: 
+    linear-gradient(to right, #27272A 1px, transparent 1px),
+    linear-gradient(to bottom, #27272A 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.glow-green {
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
+.terminal-window {
+  background: #000000;
+  border: 1px solid #27272A;
+  border-radius: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  padding: 1rem;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.terminal-text {
+  color: #22C55E;
+  line-height: 1.5;
+}
+
+.transition-smooth {
+  transition: all 0.2s ease-in-out;
+}
